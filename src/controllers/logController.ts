@@ -2,6 +2,52 @@ import type { NextFunction, Request, Response } from "express";
 import { writeToFile } from "../services/fileLogService.js";
 import { prettyPrint } from "../services/logger.js";
 import type { ApiResponse, LogEntry } from "../types/log.js";
+import { LogLevel } from "../types/log.js";
+
+const VALID_LEVELS = new Set<string>(Object.values(LogLevel));
+
+/**
+ * Validates the incoming log entry has all required fields with correct types.
+ * Returns an error message string if invalid, or null if valid.
+ */
+function validateLogEntry(body: unknown): string | null {
+  if (!body || typeof body !== "object") {
+    return "Request body must be a JSON object.";
+  }
+
+  const entry = body as Record<string, unknown>;
+
+  // Validate device_info
+  if (!entry.device_info || typeof entry.device_info !== "object") {
+    return "Missing or invalid 'device_info': must be an object.";
+  }
+
+  const deviceInfo = entry.device_info as Record<string, unknown>;
+  if (!deviceInfo.deviceName || typeof deviceInfo.deviceName !== "string") {
+    return "Missing or invalid 'device_info.deviceName': must be a non-empty string.";
+  }
+  if (!deviceInfo.platform || typeof deviceInfo.platform !== "string") {
+    return "Missing or invalid 'device_info.platform': must be a non-empty string.";
+  }
+
+  // Validate level
+  if (!entry.level || typeof entry.level !== "string") {
+    return "Missing or invalid 'level': must be a string.";
+  }
+  if (!VALID_LEVELS.has(entry.level)) {
+    return `Invalid 'level': must be one of: ${Object.values(LogLevel).join(", ")}.`;
+  }
+
+  // Validate timestamp
+  if (!entry.timestamp || typeof entry.timestamp !== "string") {
+    return "Missing or invalid 'timestamp': must be an ISO 8601 string.";
+  }
+  if (isNaN(Date.parse(entry.timestamp))) {
+    return "Invalid 'timestamp': must be a valid ISO 8601 date string.";
+  }
+
+  return null;
+}
 
 /**
  * Handles POST /api/logs
@@ -14,17 +60,16 @@ export function handleLog(
   next: NextFunction
 ): void {
   try {
-    const entry = req.body as LogEntry;
-
-    // Validate required fields
-    if (!entry.device_info || !entry.level || !entry.timestamp) {
+    const validationError = validateLogEntry(req.body);
+    if (validationError) {
       res.status(400).json(<ApiResponse>{
         success: false,
-        message:
-          "Missing required fields: device_info, level, timestamp are required.",
+        message: validationError,
       });
       return;
     }
+
+    const entry = req.body as LogEntry;
 
     // 1. Pretty-print to terminal (console output)
     prettyPrint(entry);
@@ -49,18 +94,14 @@ export function handleLog(
 export function handleHealth(
   _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void {
-  try {
-    res.status(200).json(<ApiResponse<{ status: string; uptime: number }>>{
-      success: true,
-      message: "Server is running.",
-      data: {
-        status: "ok",
-        uptime: process.uptime(),
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
+  res.status(200).json(<ApiResponse<{ status: string; uptime: number }>>{
+    success: true,
+    message: "Server is running.",
+    data: {
+      status: "ok",
+      uptime: process.uptime(),
+    },
+  });
 }
