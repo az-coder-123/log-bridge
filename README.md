@@ -16,6 +16,12 @@ A local Express + TypeScript server that receives log entries from Flutter appli
 
 ---
 
+## 📸 Dashboard
+
+![Log Bridge Dashboard](screenshots/board-01.png)
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
