@@ -1,16 +1,31 @@
 # 🌉 Log Bridge
 
-A local Express + TypeScript server that receives log entries from Flutter applications over the network. Provides pretty terminal output, file persistence, and auto-discovery via mDNS.
+A **100% local, privacy-first** log server for mobile apps — built with Express.js and TypeScript. Runs entirely on your machine over your WiFi network. **No cloud, no third-party services, no data leaves your LAN.**
+
+All log data stays between your device and your computer. Period.
+
+---
+
+## 🔒 Privacy & Security
+
+> **Log Bridge runs exclusively on your local network (WiFi/LAN).** Your app and this server must be on the same network. No data is ever sent to the cloud or any third-party service. Everything stays private, on your machine.
+
+- 🏠 **Local-only** — Server runs on your computer, devices connect via local WiFi
+- 🔐 **No cloud** — Zero external services, no sign-up, no API keys
+- 🚫 **No telemetry** — No analytics, no tracking, no data collection
+- 💻 **Your machine** — All logs are stored locally in files on your disk
 
 ---
 
 ## ✨ Features
 
-- **REST API** — Receive logs from Flutter apps via `POST /api/logs`
+- **REST API** — Receive logs from any mobile app via `POST /api/logs`
+- **Web Dashboard** — Beautiful dark-themed UI to view, search, and filter logs in real-time
+- **Multi-Device** — View logs from multiple devices simultaneously
 - **Pretty Terminal Output** — Color-coded log levels with `chalk`
 - **File Persistence** — Logs saved in NDJSON format (`logs/app.log`)
-- **Auto-Discovery** — mDNS/Bonjour advertisement so Flutter apps find the server automatically
-- **CORS Enabled** — Accepts connections from any device on the LAN
+- **Auto-Discovery** — mDNS/Bonjour advertisement so apps find the server automatically
+- **CORS Enabled** — Accepts connections from any device on the same LAN
 - **Graceful Shutdown** — Clean teardown of mDNS and HTTP server on SIGINT/SIGTERM
 - **Hot-Reload** — Development with `tsx watch`
 
@@ -135,10 +150,14 @@ log-bridge/
 
 ## 📡 mDNS Auto-Discovery
 
-The server advertises itself as `_http._tcp` named `FlutterLogServer` on the local network. Flutter apps can discover it using:
+The server advertises itself as `_http._tcp` named `FlutterLogServer` on the local network. Mobile apps on the **same WiFi network** can discover it automatically:
 
-- **[`nsd_flutter`](https://pub.dev/packages/nsd_flutter)** — Network Service Discovery
-- **[`bonsoir`](https://pub.dev/packages/bonsoir)** — Cross-platform mDNS discovery
+- **Flutter** — [`nsd_flutter`](https://pub.dev/packages/nsd_flutter) or [`bonsoir`](https://pub.dev/packages/bonsoir)
+- **React Native** — [`react-native-zeroconf`](https://github.com/Apercu/react-native-zeroconf)
+- **iOS (native)** — [`NetService`](https://developer.apple.com/documentation/foundation/netservice)
+- **Android (native)** — [`NsdManager`](https://developer.android.com/development/connectivity/network-service-discovery)
+
+> ⚠️ Both the server and mobile device must be connected to the **same WiFi network** for discovery and logging to work.
 
 ---
 
