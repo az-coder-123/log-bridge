@@ -1,15 +1,23 @@
 import { Router } from "express";
-import { handleHealth, handleLog } from "../controllers/logController.js";
+import {
+    handleClearLogs,
+    handleGetFilters,
+    handleGetLogs,
+    handleGetStats,
+    handleHealth,
+    handleLog,
+} from "../controllers/logController.js";
 
-/**
- * Log API routes.
- */
 const router = Router();
 
 // Health check
 router.get("/health", handleHealth);
 
-// Receive logs from Flutter clients
+// Log CRUD
+router.get("/logs/stats", handleGetStats);
+router.get("/logs/filters", handleGetFilters);
+router.get("/logs", handleGetLogs);
 router.post("/logs", handleLog);
+router.delete("/logs", handleClearLogs);
 
 export default router;

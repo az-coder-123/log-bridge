@@ -1,8 +1,10 @@
 import chalk from "chalk";
+import path from "node:path";
 import { createApp } from "./app.js";
 import { APP_CONFIG, getLocalIP } from "./config/index.js";
 import { startDiscovery } from "./services/discoveryService.js";
 import { closeLogFile, initLogFile } from "./services/fileLogService.js";
+import { loadFromFile } from "./services/logStore.js";
 
 /**
  * Bootstrap the server.
@@ -10,6 +12,11 @@ import { closeLogFile, initLogFile } from "./services/fileLogService.js";
 function main(): void {
   // 1. Initialize log file (create directory + write stream)
   initLogFile();
+
+  // 2. Load existing logs from file into memory
+  const logPath = path.resolve(APP_CONFIG.logs.file);
+  loadFromFile(logPath);
+  console.log(chalk.blue(`📂 Loaded historical logs from: ${logPath}`));
 
   const app = createApp();
   const port = APP_CONFIG.port;

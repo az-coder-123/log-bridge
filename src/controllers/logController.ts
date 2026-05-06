@@ -1,6 +1,14 @@
 import type { NextFunction, Request, Response } from "express";
 import { writeToFile } from "../services/fileLogService.js";
 import { prettyPrint } from "../services/logger.js";
+import {
+  addLog,
+  clearLogs,
+  getContexts,
+  getDevices,
+  getStats,
+  queryLogs,
+} from "../services/logStore.js";
 import type { ApiResponse, LogEntry } from "../types/log.js";
 import { LogLevel } from "../types/log.js";
 
@@ -8,7 +16,6 @@ const VALID_LEVELS = new Set<string>(Object.values(LogLevel));
 
 /**
  * Validates the incoming log entry has all required fields with correct types.
- * Returns an error message string if invalid, or null if valid.
  */
 function validateLogEntry(body: unknown): string | null {
   if (!body || typeof body !== "object") {
@@ -17,7 +24,6 @@ function validateLogEntry(body: unknown): string | null {
 
   const entry = body as Record<string, unknown>;
 
-  // Validate device_info
   if (!entry.device_info || typeof entry.device_info !== "object") {
     return "Missing or invalid 'device_info': must be an object.";
   }
@@ -30,7 +36,6 @@ function validateLogEntry(body: unknown): string | null {
     return "Missing or invalid 'device_info.platform': must be a non-empty string.";
   }
 
-  // Validate level
   if (!entry.level || typeof entry.level !== "string") {
     return "Missing or invalid 'level': must be a string.";
   }
@@ -38,7 +43,6 @@ function validateLogEntry(body: unknown): string | null {
     return `Invalid 'level': must be one of: ${Object.values(LogLevel).join(", ")}.`;
   }
 
-  // Validate timestamp
   if (!entry.timestamp || typeof entry.timestamp !== "string") {
     return "Missing or invalid 'timestamp': must be an ISO 8601 string.";
   }
@@ -50,9 +54,7 @@ function validateLogEntry(body: unknown): string | null {
 }
 
 /**
- * Handles POST /api/logs
- * Receives a log entry from a Flutter client,
- * prints it to the terminal, and persists it to disk.
+ * POST /api/logs — Receive a log from Flutter
  */
 export function handleLog(
   req: Request,
@@ -71,13 +73,16 @@ export function handleLog(
 
     const entry = req.body as LogEntry;
 
-    // 1. Pretty-print to terminal (console output)
+    // 1. Store in memory
+    addLog(entry);
+
+    // 2. Pretty-print to terminal
     prettyPrint(entry);
 
-    // 2. Persist to log file
+    // 3. Persist to file
     writeToFile(entry);
 
-    // 3. Acknowledge
+    // 4. Acknowledge
     res.status(200).json(<ApiResponse>{
       success: true,
       message: "Log received successfully.",
@@ -88,14 +93,88 @@ export function handleLog(
 }
 
 /**
- * Handles GET /api/health
- * Simple health-check endpoint.
+ * GET /api/logs — Query logs with filtering, search, pagination
  */
-export function handleHealth(
-  _req: Request,
-  res: Response,
-  _next: NextFunction
-): void {
+export function handleGetLogs(req: Request, res: Response): void {
+  const {
+    level,
+    search,
+    device,
+    context,
+    startDate,
+    endDate,
+    page,
+    limit,
+  } = req.query;
+
+  // Parse level — can be single or comma-separated
+  let parsedLevel: LogLevel[] | undefined;
+  if (level && typeof level === "string") {
+    parsedLevel = level.split(",") as LogLevel[];
+  }
+
+  const result = queryLogs({
+    level: parsedLevel,
+    search: search as string | undefined,
+    device: device as string | undefined,
+    context: context as string | undefined,
+    startDate: startDate as string | undefined,
+    endDate: endDate as string | undefined,
+    page: page ? parseInt(page as string, 10) : undefined,
+    limit: limit ? parseInt(limit as string, 10) : undefined,
+  });
+
+  res.status(200).json(<ApiResponse<typeof result>>{
+    success: true,
+    message: "Logs retrieved.",
+    data: result,
+  });
+}
+
+/**
+ * GET /api/logs/stats — Log statistics
+ */
+export function handleGetStats(_req: Request, res: Response): void {
+  const stats = getStats();
+  res.status(200).json(<ApiResponse<typeof stats>>{
+    success: true,
+    message: "Statistics retrieved.",
+    data: stats,
+  });
+}
+
+/**
+ * GET /api/logs/filters — Available filter options
+ */
+export function handleGetFilters(_req: Request, res: Response): void {
+  res.status(200).json(
+    <ApiResponse<{ levels: string[]; devices: string[]; contexts: string[] }>>{
+      success: true,
+      message: "Filters retrieved.",
+      data: {
+        levels: Object.values(LogLevel),
+        devices: getDevices(),
+        contexts: getContexts(),
+      },
+    }
+  );
+}
+
+/**
+ * DELETE /api/logs — Clear all stored logs
+ */
+export function handleClearLogs(_req: Request, res: Response): void {
+  clearLogs();
+  res.status(200).json(<ApiResponse>{
+    success: true,
+    message: "All logs cleared.",
+  });
+}
+
+/**
+ * GET /api/health — Health check
+ */
+export function handleHealth(_req: Request, res: Response): void {
   res.status(200).json(<ApiResponse<{ status: string; uptime: number }>>{
     success: true,
     message: "Server is running.",

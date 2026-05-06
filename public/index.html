@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Log Bridge — Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --bg-card: #181a20;
+      --bg-hover: #1e2028;
+      --border: #2a2d38;
+      --text: #e4e5ea;
+      --text-dim: #8b8d9a;
+      --accent: #6c8cff;
+      --accent-dim: rgba(108,140,255,0.15);
+      --red: #ff5c5c;
+      --orange: #ff9f43;
+      --yellow: #ffd166;
+      --green: #06d6a0;
+      --cyan: #4ecdc4;
+      --gray: #6b7280;
+      --radius: 8px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      overflow: hidden;
+    }
+
+    /* ── Layout ─────────────────────────────── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      flex-shrink: 0;
+    }
+
+    header .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header .brand svg { width: 28px; height: 28px; }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+
+    .btn-danger { border-color: var(--red); color: var(--red); }
+    .btn-danger:hover { background: rgba(255,92,92,0.1); }
+
+    /* ── Stats Row ──────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+    }
+
+    .stat-card .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    .stat-card .value {
+      font-size: 24px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-card .value.c-verbose { color: var(--gray); }
+    .stat-card .value.c-debug { color: var(--cyan); }
+    .stat-card .value.c-info { color: var(--green); }
+    .stat-card .value.c-warning { color: var(--yellow); }
+    .stat-card .value.c-error { color: var(--red); }
+    .stat-card .value.c-fatal { color: #fff; text-shadow: 0 0 8px var(--red); }
+    .stat-card .value.c-total { color: var(--accent); }
+
+    /* ── Toolbar ────────────────────────────── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .level-pills {
+      display: flex;
+      gap: 4px;
+    }
+
+    .pill {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      transition: all 0.15s;
+      text-transform: capitalize;
+    }
+
+    .pill:hover { border-color: var(--text-dim); }
+
+    .pill.active.all { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .pill.active.verbose { background: rgba(107,114,128,0.2); border-color: var(--gray); color: var(--gray); }
+    .pill.active.debug { background: rgba(78,205,196,0.15); border-color: var(--cyan); color: var(--cyan); }
+    .pill.active.info { background: rgba(6,214,160,0.15); border-color: var(--green); color: var(--green); }
+    .pill.active.warning { background: rgba(255,209,102,0.15); border-color: var(--yellow); color: var(--yellow); }
+    .pill.active.error { background: rgba(255,92,92,0.15); border-color: var(--red); color: var(--red); }
+    .pill.active.fatal { background: rgba(255,92,92,0.25); border-color: var(--red); color: #fff; }
+
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 7px 12px 7px 34px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-box input:focus { border-color: var(--accent); }
+
+    .search-box svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px; height: 16px;
+      color: var(--text-dim);
+    }
+
+    select {
+      padding: 7px 28px 7px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 13px;
+      font-family: var(--font);
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8d9a' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+
+    select:focus { border-color: var(--accent); }
+
+    /* ── Log Table ──────────────────────────── */
+    .table-wrap {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .table-wrap::-webkit-scrollbar { width: 6px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--bg-card);
+    }
+
+    th {
+      padding: 8px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tr.log-row { cursor: pointer; transition: background 0.1s; }
+    tr.log-row:hover { background: var(--bg-hover); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-verbose { background: rgba(107,114,128,0.2); color: var(--gray); }
+    .badge-debug { background: rgba(78,205,196,0.15); color: var(--cyan); }
+    .badge-info { background: rgba(6,214,160,0.15); color: var(--green); }
+    .badge-warning { background: rgba(255,209,102,0.15); color: var(--yellow); }
+    .badge-error { background: rgba(255,92,92,0.15); color: var(--red); }
+    .badge-fatal { background: rgba(255,92,92,0.3); color: #fff; }
+
+    .mono { font-family: var(--font-mono); font-size: 12px; }
+
+    .device-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--accent-dim);
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .context-tag {
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .payload-cell {
+      max-width: 400px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    /* ── Expanded Row ───────────────────────── */
+    tr.detail-row { display: none; }
+    tr.detail-row.open { display: table-row; }
+
+    tr.detail-row td {
+      padding: 0 16px 16px 16px;
+      background: rgba(108,140,255,0.03);
+    }
+
+    .detail-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .detail-section h4 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .detail-section pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      position: relative;
+      margin: 0;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-card);
+      color: var(--text-dim);
+      font-size: 11px;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.15s;
+      z-index: 5;
+    }
+
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .copy-btn.copied { border-color: var(--green); color: var(--green); }
+
+    .detail-section .pre-wrap { position: relative; }
+
+    .device-detail {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 12px;
+      font-size: 13px;
+    }
+
+    .device-detail dt { color: var(--text-dim); font-size: 12px; }
+    .device-detail dd { font-family: var(--font-mono); font-size: 12px; }
+
+    /* ── Pagination ─────────────────────────── */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-card);
+      flex-shrink: 0;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .pagination .pages {
+      display: flex;
+      gap: 4px;
+    }
+
+    .page-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 13px;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .page-btn:hover { border-color: var(--accent); color: var(--text); }
+    .page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ── Empty State ────────────────────────── */
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      color: var(--text-dim);
+    }
+
+    .empty svg { width: 64px; height: 64px; margin-bottom: 16px; opacity: 0.3; }
+    .empty h3 { font-size: 16px; margin-bottom: 4px; }
+    .empty p { font-size: 13px; }
+
+    /* ── Responsive ─────────────────────────── */
+    @media (max-width: 768px) {
+      .toolbar { flex-direction: column; align-items: stretch; }
+      .search-box { min-width: auto; }
+      .detail-content { grid-template-columns: 1fr; }
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#6c8cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+      <h1>Log <span>Bridge</span></h1>
+    </div>
+    <div class="header-actions">
+      <div class="live-dot" title="Connected"></div>
+      <button class="btn" id="btnRefresh" title="Refresh logs">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 105.64-11.36L3 10"/></svg>
+        Refresh
+      </button>
+      <button class="btn" id="btnAutoRefresh" title="Toggle auto-refresh">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Auto
+      </button>
+      <button class="btn btn-danger" id="btnClear" title="Clear all logs">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        Clear
+      </button>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card"><div class="label">Total Logs</div><div class="value c-total" id="statTotal">0</div></div>
+    <div class="stat-card"><div class="label">Verbose</div><div class="value c-verbose" id="statVerbose">0</div></div>
+    <div class="stat-card"><div class="label">Debug</div><div class="value c-debug" id="statDebug">0</div></div>
+    <div class="stat-card"><div class="label">Info</div><div class="value c-info" id="statInfo">0</div></div>
+    <div class="stat-card"><div class="label">Warning</div><div class="value c-warning" id="statWarning">0</div></div>
+    <div class="stat-card"><div class="label">Error</div><div class="value c-error" id="statError">0</div></div>
+    <div class="stat-card"><div class="label">Fatal</div><div class="value c-fatal" id="statFatal">0</div></div>
+    <div class="stat-card"><div class="label">Devices</div><div class="value c-total" id="statDevices">0</div></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="level-pills" id="levelPills">
+      <button class="pill active all" data-level="">All</button>
+      <button class="pill verbose" data-level="verbose">Verbose</button>
+      <button class="pill debug" data-level="debug">Debug</button>
+      <button class="pill info" data-level="info">Info</button>
+      <button class="pill warning" data-level="warning">Warning</button>
+      <button class="pill error" data-level="error">Error</button>
+      <button class="pill fatal" data-level="fatal">Fatal</button>
+    </div>
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Search logs..." />
+    </div>
+    <select id="deviceFilter"><option value="">All Devices</option></select>
+    <select id="contextFilter"><option value="">All Contexts</option></select>
+  </div>
+
+  <!-- Log Table -->
+  <div class="table-wrap" id="tableWrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px">#</th>
+          <th style="width:180px">Time</th>
+          <th style="width:90px">Level</th>
+          <th style="width:140px">Device</th>
+          <th style="width:150px">Context</th>
+          <th>Payload</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination">
+    <span id="pageInfo">0 logs</span>
+    <div class="pages" id="pageButtons"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────
+const state = {
+  page: 1,
+  limit: 50,
+  level: '',
+  search: '',
+  device: '',
+  context: '',
+  autoRefresh: true,
+  autoRefreshInterval: null,
+  expandedId: null,
+};
+
+// ── API helpers ────────────────────────────
+const API = '/api';
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  return res.json();
+}
+
+// ── Render functions ───────────────────────
+function formatTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleString('vi-VN', {
+    hour12: false,
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderStats(stats) {
+  document.getElementById('statTotal').textContent = stats.total.toLocaleString();
+  document.getElementById('statVerbose').textContent = stats.byLevel.verbose ?? 0;
+  document.getElementById('statDebug').textContent = stats.byLevel.debug ?? 0;
+  document.getElementById('statInfo').textContent = stats.byLevel.info ?? 0;
+  document.getElementById('statWarning').textContent = stats.byLevel.warning ?? 0;
+  document.getElementById('statError').textContent = stats.byLevel.error ?? 0;
+  document.getElementById('statFatal').textContent = stats.byLevel.fatal ?? 0;
+  document.getElementById('statDevices').textContent = stats.devices;
+}
+
+function renderFilters(data) {
+  const devSel = document.getElementById('deviceFilter');
+  const ctxSel = document.getElementById('contextFilter');
+  const curDev = devSel.value;
+  const curCtx = ctxSel.value;
+
+  devSel.innerHTML = '<option value="">All Devices</option>';
+  data.devices.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d; opt.textContent = d;
+    if (d === curDev) opt.selected = true;
+    devSel.appendChild(opt);
+  });
+
+  ctxSel.innerHTML = '<option value="">All Contexts</option>';
+  data.contexts.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    if (c === curCtx) opt.selected = true;
+    ctxSel.appendChild(opt);
+  });
+}
+
+function renderLogs(result) {
+  const tbody = document.getElementById('logBody');
+
+  if (result.total === 0) {
+    tbody.innerHTML = `
+      <tr><td colspan="6">
+        <div class="empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+            <polyline points="10 9 9 9 8 9"/>
+          </svg>
+          <h3>No logs yet</h3>
+          <p>Send logs from your Flutter app to see them here</p>
+        </div>
+      </td></tr>`;
+    renderPagination(result);
+    return;
+  }
+
+  let html = '';
+  for (const log of result.logs) {
+    const payloadStr = log.payload ? JSON.stringify(log.payload) : '';
+    const payloadDisplay = payloadStr.length > 120 ? payloadStr.substring(0, 120) + '…' : payloadStr;
+
+    html += `<tr class="log-row" data-id="${log.id}">
+      <td class="mono" style="color:var(--text-dim)">${log.id}</td>
+      <td class="mono">${formatTime(log.timestamp)}</td>
+      <td><span class="badge badge-${log.level}">${log.level}</span></td>
+      <td><span class="device-tag">📱 ${escapeHTML(log.device_info.deviceName)}</span></td>
+      <td><span class="context-tag">${escapeHTML(log.context || '')}</span></td>
+      <td class="payload-cell">${escapeHTML(payloadDisplay)}</td>
+    </tr>`;
+
+    // Detail row
+    html += `<tr class="detail-row" data-detail-id="${log.id}">
+      <td colspan="6">
+        <div class="detail-content">
+          <div class="detail-section">
+            <h4>Device Info</h4>
+            <dl class="device-detail">
+              <dt>Name</dt><dd>${escapeHTML(log.device_info.deviceName)}</dd>
+              <dt>Platform</dt><dd>${escapeHTML(log.device_info.platform)}</dd>
+              <dt>OS Version</dt><dd>${escapeHTML(log.device_info.osVersion || '-')}</dd>
+              <dt>App Version</dt><dd>${escapeHTML(log.device_info.appVersion || '-')}</dd>
+              <dt>Device ID</dt><dd>${escapeHTML(log.device_info.deviceId || '-')}</dd>
+            </dl>
+          </div>
+          <div class="detail-section">
+            <h4>Payload</h4>
+            <div class="pre-wrap">
+              <button class="copy-btn" onclick="copyPayload(event, ${log.id})">Copy</button>
+              <pre id="payload-${log.id}">${escapeHTML(JSON.stringify(log.payload, null, 2))}</pre>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  tbody.innerHTML = html;
+
+  // Restore previously expanded row (survives auto-refresh)
+  if (state.expandedId !== null) {
+    const detail = tbody.querySelector(`[data-detail-id="${state.expandedId}"]`);
+    if (detail) detail.classList.add('open');
+  }
+
+  // Bind row click to expand
+  tbody.querySelectorAll('.log-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      const detail = tbody.querySelector(`[data-detail-id="${id}"]`);
+      if (state.expandedId === id) {
+        detail.classList.remove('open');
+        state.expandedId = null;
+      } else {
+        tbody.querySelectorAll('.detail-row.open').forEach(d => d.classList.remove('open'));
+        detail.classList.add('open');
+        state.expandedId = id;
+      }
+    });
+  });
+
+  renderPagination(result);
+}
+
+function renderPagination(result) {
+  const { total, page, limit, totalPages } = result;
+  const start = (page - 1) * limit + 1;
+  const end = Math.min(page * limit, total);
+
+  document.getElementById('pageInfo').textContent =
+    total > 0 ? `Showing ${start}-${end} of ${total} logs` : '0 logs';
+
+  const container = document.getElementById('pageButtons');
+  container.innerHTML = '';
+
+  if (totalPages <= 1) return;
+
+  // Prev
+  const prevBtn = createPageBtn('‹', page > 1 ? page - 1 : null);
+  container.appendChild(prevBtn);
+
+  // Page numbers (show max 7)
+  let pages = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages = [1];
+    let startP = Math.max(2, page - 2);
+    let endP = Math.min(totalPages - 1, page + 2);
+    if (startP > 2) pages.push('…');
+    for (let i = startP; i <= endP; i++) pages.push(i);
+    if (endP < totalPages - 1) pages.push('…');
+    pages.push(totalPages);
+  }
+
+  for (const p of pages) {
+    if (p === '…') {
+      const span = document.createElement('span');
+      span.textContent = '…';
+      span.style.padding = '4px 6px';
+      span.style.color = 'var(--text-dim)';
+      container.appendChild(span);
+    } else {
+      const btn = createPageBtn(p, p);
+      if (p === page) btn.classList.add('active');
+      container.appendChild(btn);
+    }
+  }
+
+  // Next
+  const nextBtn = createPageBtn('›', page < totalPages ? page + 1 : null);
+  container.appendChild(nextBtn);
+}
+
+function createPageBtn(label, targetPage) {
+  const btn = document.createElement('button');
+  btn.className = 'page-btn';
+  btn.textContent = label;
+  if (targetPage === null) {
+    btn.disabled = true;
+  } else {
+    btn.addEventListener('click', () => { state.page = targetPage; loadLogs(); });
+  }
+  return btn;
+}
+
+// ── Data loading ───────────────────────────
+async function loadLogs() {
+  const params = new URLSearchParams();
+  if (state.level) params.set('level', state.level);
+  if (state.search) params.set('search', state.search);
+  if (state.device) params.set('device', state.device);
+  if (state.context) params.set('context', state.context);
+  params.set('page', state.page);
+  params.set('limit', state.limit);
+
+  const data = await fetchJSON(`${API}/logs?${params}`);
+  if (data.success) renderLogs(data.data);
+}
+
+async function loadStats() {
+  const data = await fetchJSON(`${API}/logs/stats`);
+  if (data.success) renderStats(data.data);
+}
+
+async function loadFilters() {
+  const data = await fetchJSON(`${API}/logs/filters`);
+  if (data.success) renderFilters(data.data);
+}
+
+async function loadAll() {
+  await Promise.all([loadLogs(), loadStats(), loadFilters()]);
+}
+
+// ── Auto Refresh ───────────────────────────
+function startAutoRefresh() {
+  stopAutoRefresh();
+  state.autoRefreshInterval = setInterval(loadAll, 2000);
+  document.getElementById('btnAutoRefresh').style.borderColor = 'var(--green)';
+  document.getElementById('btnAutoRefresh').style.color = 'var(--green)';
+}
+
+function stopAutoRefresh() {
+  if (state.autoRefreshInterval) {
+    clearInterval(state.autoRefreshInterval);
+    state.autoRefreshInterval = null;
+  }
+  document.getElementById('btnAutoRefresh').style.borderColor = '';
+  document.getElementById('btnAutoRefresh').style.color = '';
+}
+
+// ── Event Bindings ─────────────────────────
+document.querySelectorAll('#levelPills .pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('#levelPills .pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    state.level = pill.dataset.level;
+    state.page = 1;
+    loadAll();
+  });
+});
+
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    state.search = e.target.value.trim();
+    state.page = 1;
+    loadAll();
+  }, 300);
+});
+
+document.getElementById('deviceFilter').addEventListener('change', (e) => {
+  state.device = e.target.value;
+  state.page = 1;
+  loadAll();
+});
+
+document.getElementById('contextFilter').addEventListener('change', (e) => {
+  state.context = e.target.value;
+  state.page = 1;
+  loadAll();
+});
+
+document.getElementById('btnRefresh').addEventListener('click', loadAll);
+
+document.getElementById('btnAutoRefresh').addEventListener('click', () => {
+  state.autoRefresh = !state.autoRefresh;
+  if (state.autoRefresh) startAutoRefresh();
+  else stopAutoRefresh();
+});
+
+document.getElementById('btnClear').addEventListener('click', async () => {
+  if (!confirm('Clear all stored logs? This cannot be undone.')) return;
+  await fetch(`${API}/logs`, { method: 'DELETE' });
+  state.expandedId = null;
+  loadAll();
+});
+
+// ── Copy to clipboard ──────────────────────
+function copyPayload(event, logId) {
+  event.stopPropagation();
+  const pre = document.getElementById('payload-' + logId);
+  if (!pre) return;
+  const text = pre.textContent || pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.currentTarget;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// ── Init ───────────────────────────────────
+loadAll();
+startAutoRefresh();
+</script>
+</body>
+</html>
